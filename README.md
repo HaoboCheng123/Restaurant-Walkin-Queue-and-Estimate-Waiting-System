@@ -1,1 +1,1 @@
-Riot history look up
+Restaurant Queue System; Estimate Waiting Time

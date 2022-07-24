@@ -14,6 +14,14 @@ db = SQLAlchemy(app)
 
 migrate = Migrate(app, db)
 
+
+# def clear_data(session):
+#     meta = db.metadata
+#     for table in reversed(meta.sorted_tables):
+#         print("clear tables")
+#         session.execute(table.delete())
+#     session.commit()
+
 class Profile(db.Model):
     # Id : Field which stores unique id for every row in
     # database table.
@@ -21,20 +29,20 @@ class Profile(db.Model):
     # last_name: Used to store last name of the user
     # Age: Used to store the age of the user
 
-
     # 现在这里加column，在这里加完直接用flask db migrate -m "something" commit 然后 flask db upgrade更新数据库，之后再在下面的页面
     # /router进行调用！！！！！
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(20), unique=False, nullable=False)
     last_name = db.Column(db.String(20), unique=False, nullable=False)
-    age = db.Column(db.Integer, nullable=False)
-    school = db.Column(db.String(20), unique=False, nullable=False)
-    sex = db.Column(db.String(20), unique=False, nullable=False)
+    party_size = db.Column(db.Integer, nullable=False)
+    phone_number = db.Column(db.String(20), unique=False, nullable=False)
+
 
     # repr method represents how one object of this datatable
     # will look like
     def __repr__(self):
-        return f"Name : {self.first_name}, Age: {self.age}"
+        return f"Name : {self.first_name}, party_size: {self.party_size}, phone_number:{self.phone_number}"
+
 
 # golbal variables
 api_key = 'RGAPI-4063d9ba-b643-4a89-a616-dbe3fbe915bb'
@@ -322,11 +330,13 @@ def login():
             return redirect(url_for('home'))
     return render_template('login.html', error=error)
 
+
 @app.route('/logout')
 def logout():
     global login_status
     login_status = False
     return redirect(url_for('login'))
+
 
 @app.route('/uploads')
 def uploads():
@@ -335,11 +345,12 @@ def uploads():
     print(hists)
     return render_template('uploads.html', hists=hists)
 
+
 @app.route('/upload_static_file', methods=['POST'])
 def upload_static_file():
     print("Got request in static files")
     f = request.files['static_file']
-    f.save(os.path.join(app.root_path, 'static/uploads/'+f.filename))
+    f.save(os.path.join(app.root_path, 'static/uploads/' + f.filename))
     # content_type = request.mimetype
     # s3_client = boto3.client('s3')
     # response = s3_client.upload_fileobj(f, "haobochengfirstbucket", "something1")
@@ -351,17 +362,60 @@ def upload_static_file():
     return jsonify(resp), 200
 
 
-
 @app.route('/')
 def index():
-      # Query all data and then pass it to the template
+    # Query all data and then pass it to the template
     profiles = Profile.query.all()
-    return render_template('index.html', profiles=profiles)
+
+    party_size = {}
+    estimate_waiting = {}
+
+    party_size[1] = 0
+    party_size[2] = 0
+    party_size[3] = 0
+    party_size[4] = 0
+
+    for party in profiles:
+        if party.party_size == 1:
+            party_size[1]+=1
+        elif party.party_size == 2:
+            party_size[2]+=1
+        elif party.party_size == 3:
+            party_size[3] += 1
+        elif party.party_size == 4:
+            party_size[4] += 1
+
+    if party_size[1] < 5:
+        estimate_waiting[1] = 0
+    else:
+        estimate_waiting[1] = (party_size[1] - 4)* 5
+
+    if party_size[2] < 5:
+        estimate_waiting[2] = 0
+    else:
+        estimate_waiting[2] = (party_size[2] - 4) * 5
+
+    if party_size[3] < 3:
+        estimate_waiting[3] = 0
+    else:
+        estimate_waiting[3] = (party_size[3] - 2)* 7
+
+    if party_size[4] < 2:
+        estimate_waiting[4] = 0
+    else:
+        estimate_waiting[4] = (party_size[2] - 1)* 10
+
+    return render_template('index.html', profiles=profiles, party_size=party_size, estimate_waiting=estimate_waiting)
+
 
 @app.route('/add_data')
 def add_data():
     return render_template('add_profile.html')
 
+@app.route('/management')
+def management():
+    profiles = Profile.query.all()
+    return render_template('management.html', profiles=profiles)
 
 # function to add profiles
 @app.route('/add', methods=["POST"])
@@ -372,16 +426,18 @@ def profile():
     # as that in the html input fields
     first_name = request.form.get("first_name")
     last_name = request.form.get("last_name")
-    age = request.form.get("age")
+    party_size = request.form.get("party_size")
+    phone_number = request.form.get("phone_number")
+
 
     # 一定要先更新数据库（查看上面提示）！再在这里（和前端交互）调用数据库
-    school = request.form.get("school")
-    sex = request.form.get("sex")
+    # school = request.form.get("school")
+    # sex = request.form.get("sex")
 
     # create an object of the Profile class of models and
     # store data as a row in our datatable
-    if first_name != '' and last_name != '' and age is not None and sex != '' and school != '':
-        p = Profile(first_name=first_name, last_name=last_name, age=age, school=school, sex=sex)
+    if first_name != '' and last_name != '' and party_size is not None and phone_number != '':
+        p = Profile(first_name=first_name, last_name=last_name, party_size=party_size, phone_number=phone_number)
         db.session.add(p)
         db.session.commit()
         return redirect('/')
@@ -396,4 +452,9 @@ def erase(id):
     data = Profile.query.get(id)
     db.session.delete(data)
     db.session.commit()
-    return redirect('/')
+    return redirect('/management')
+
+app.debug = True
+app.run(host='localhost', port=5000)
+# if __name__ == "__main__":
+#     app.run()
